@@ -14,7 +14,7 @@
 # codechecker rules
 load(
     "//codechecker:codechecker.bzl",
-#     "codechecker",
+    "codechecker",
 #     "codechecker_online_database",
 #     "codechecker_suite",
 #     "codechecker_test",
@@ -49,21 +49,21 @@ cc_binary(
 #     #disable = True,
 # )
 
-compile_commands(
-    name = "codechecker_rule",
-    targets = [
-        "test_main",
-    ],
-)
-
-# # Simple codechecker rule - performs only "build" phase without "test"
-# # which verifies results and sends results to online database
-# codechecker(
-#     name = "codechecker_main_build",
+# compile_commands(
+#     name = "compile_commands",
 #     targets = [
 #         "test_main",
 #     ],
 # )
+
+# Simple codechecker rule - performs only "build" phase without "test"
+# which verifies results and sends results to online database
+codechecker(
+    name = "codechecker_main_build",
+    targets = [
+        "test_main",
+    ],
+)
 
 # # Example of how CodeChecker online database can be defined
 # codechecker_online_database(

@@ -2,7 +2,6 @@ load(
     ":compilation_database.bzl",
     "CompilationAspect",
     "compilation_database_aspect",
-    "compilation_database",
 )
 
 def _check_source_files(source_files, compilation_db):
@@ -49,26 +48,13 @@ def _compile_commands_impl(ctx):
         is_executable = False,
     )
 
-    # Create CodeChecker skip (ignore) file
-    ctx.actions.write(
-        output = ctx.outputs.codechecker_skipfile,
-        content = "\n".join(ctx.attr.skip),
-        is_executable = False,
-    )
-
     # List all files required at build and run (test) time
     all_files = [
         ctx.outputs.compile_commands,
-        ctx.outputs.codechecker_skipfile,
-        # ctx.outputs.codechecker_files,
-        # ctx.outputs.codechecker_script,
-        # ctx.outputs.codechecker_log,
-    ] + source_files
+    ] + source_files + headers
 
     # List files required for test
-    run_files = [
-        # ctx.outputs.codechecker_files,
-    ] + source_files
+    run_files = all_files
 
     # Return all files
     return [
@@ -80,6 +66,54 @@ def _compile_commands_impl(ctx):
 
 compile_commands = rule(
     implementation = _compile_commands_impl,
+    attrs = {
+        "targets": attr.label_list(
+            aspects = [
+                compilation_database_aspect,
+            ],
+            doc = "List of compilable targets which should be checked.",
+        ),
+    },
+    outputs = {
+        "compile_commands": "%{name}.compile_commands.json",
+    },
+)
+
+def _codechecker_impl(ctx):
+    # Create compile_commands.json
+    info = _compile_commands_impl(ctx)
+    all_files = info[0].files.to_list()
+    run_files = info[0].default_runfiles.files.to_list()
+
+    # Create CodeChecker skip (ignore) file
+    ctx.actions.write(
+        output = ctx.outputs.codechecker_skipfile,
+        content = "\n".join(ctx.attr.skip),
+        is_executable = False,
+    )
+
+    # List all files required at build and run (test) time
+    # all_files.append(ctx.outputs.codechecker_skipfile)
+    all_files = all_files + [
+        ctx.outputs.codechecker_skipfile,
+        # ctx.outputs.codechecker_files,
+        # ctx.outputs.codechecker_script,
+        # ctx.outputs.codechecker_log,
+    ]
+
+    # List files required for test
+    run_files = all_files
+
+    # Return all files
+    return [
+        DefaultInfo(
+            files = depset(all_files),
+            runfiles = ctx.runfiles(files = run_files),
+        ),
+    ]
+
+codechecker = rule(
+    implementation = _codechecker_impl,
     attrs = {
         "targets": attr.label_list(
             aspects = [
