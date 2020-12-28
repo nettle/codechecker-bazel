@@ -6,13 +6,13 @@
 # )
 
 # # codechecker rules
-# load(
-#     "@bbi_bazel//codechecker:codechecker.bzl",
-#     "codechecker",
+load(
+    "//codechecker:codechecker.bzl",
+    "codechecker",
 #     "codechecker_online_database",
 #     "codechecker_suite",
 #     "codechecker_test",
-# )
+)
 
 # Test for strip_include_prefix
 cc_library(
@@ -28,14 +28,14 @@ cc_binary(
     deps = ["test_lib"],
 )
 
-# # Simple codechecker rule - performs only "build" phase without "test"
-# # which verifies results and sends results to online database
-# codechecker(
-#     name = "codechecker_main_build",
-#     targets = [
-#         "test_main",
-#     ],
-# )
+# Simple codechecker rule - performs only "build" phase without "test"
+# which verifies results and sends results to online database
+codechecker(
+    name = "codechecker_main_build",
+    targets = [
+        "test_main",
+    ],
+)
 
 # # Example of how CodeChecker online database can be defined
 # codechecker_online_database(
