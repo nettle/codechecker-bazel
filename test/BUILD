@@ -14,10 +14,10 @@
 # codechecker rules
 load(
     "//codechecker:codechecker.bzl",
-    "codechecker",
+#     "codechecker",
 #     "codechecker_online_database",
 #     "codechecker_suite",
-#     "codechecker_test",
+    "codechecker_test",
     "compile_commands",
 )
 
@@ -58,7 +58,7 @@ cc_binary(
 
 # Simple codechecker rule - performs only "build" phase without "test"
 # which verifies results and sends results to online database
-codechecker(
+codechecker_test(
     name = "codechecker_main_build",
     targets = [
         "test_main",

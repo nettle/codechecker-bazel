@@ -92,27 +92,74 @@ def _codechecker_impl(ctx):
         is_executable = False,
     )
 
+    # Create log file
+    ctx.actions.write(
+        output = ctx.outputs.codechecker_log,
+        content = "",
+        is_executable = False,
+    )
+
+    # Create folder for CodeChecker data
+    ctx.actions.run_shell(
+        outputs = [ctx.outputs.codechecker_files],
+        command = "mkdir {}".format(ctx.outputs.codechecker_files.path),
+    )
+
+    ctx.actions.expand_template(
+        template = ctx.file._codechecker_script_template,
+        output = ctx.outputs.codechecker_script,
+        is_executable = True,
+        substitutions = {
+            "{Verbosity}": "DEBUG",
+            "{codecheckerPATH}": "CodeChecker",
+            "{compile_commands}": ctx.outputs.compile_commands.short_path,
+            "{codechecker_skipfile}": ctx.outputs.codechecker_skipfile.short_path,
+            "{codechecker_files}": ctx.outputs.codechecker_files.short_path,
+            #"{codechecker_log}": ctx.outputs.codechecker_log.short_path,
+        },
+    )
+
+    # ctx.actions.run(
+    #     inputs = depset(
+    #         [
+    #             ctx.outputs.codechecker_script,
+    #             ctx.outputs.compile_commands,
+    #             ctx.outputs.codechecker_skipfile,
+    #         ] + all_files, # source_files,
+    #         # transitive = headers,
+    #     ),
+    #     outputs = [
+    #         ctx.outputs.codechecker_files,
+    #         ctx.outputs.codechecker_log,
+    #     ],
+    #     executable = ctx.outputs.codechecker_script,
+    #     arguments = [],
+    #     progress_message = "CodeChecker %s" % str(ctx.label),
+    # )
+
     # List all files required at build and run (test) time
     # all_files.append(ctx.outputs.codechecker_skipfile)
-    all_files = all_files + [
+    all_files = all_files + run_files + [
         ctx.outputs.codechecker_skipfile,
-        # ctx.outputs.codechecker_files,
-        # ctx.outputs.codechecker_script,
-        # ctx.outputs.codechecker_log,
+        ctx.outputs.codechecker_script,
+        ctx.outputs.codechecker_files,
+        ctx.outputs.codechecker_log,
     ]
 
     # List files required for test
-    run_files = all_files
+    run_files = all_files + [
+    ]
 
     # Return all files
     return [
         DefaultInfo(
             files = depset(all_files),
             runfiles = ctx.runfiles(files = run_files),
+            executable = ctx.outputs.codechecker_script,  # ctx.outputs.codechecker_test_script,
         ),
     ]
 
-codechecker = rule(
+codechecker_test = rule(
     implementation = _codechecker_impl,
     attrs = {
         "targets": attr.label_list(
@@ -132,16 +179,17 @@ codechecker = rule(
         #     cfg = "host",
         #     default = ":compile_commands_filter",
         # ),
-        # "_codechecker_script_template": attr.label(
-        #     default = ":codechecker_script.py",
-        #     allow_single_file = True,
-        # ),
+        "_codechecker_script_template": attr.label(
+            default = ":codechecker_script.py",
+            allow_single_file = True,
+        ),
     },
     outputs = {
-        # "codechecker_files": "%{name}.codechecker-files",
+        "codechecker_files": "%{name}.codechecker-files",
         "compile_commands": "%{name}.compile_commands.json",
         "codechecker_skipfile": "%{name}.codechecker_skipfile.cfg",
-        # "codechecker_script": "%{name}.codechecker_script.py",
-        # "codechecker_log": "%{name}.codechecker.log",
+        "codechecker_script": "%{name}.codechecker_script.py",
+        "codechecker_log": "%{name}.codechecker.log",
     },
+    test = True,
 )
