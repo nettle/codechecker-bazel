@@ -1,30 +1,65 @@
 load(
-    ":compile_commands.bzl",
-    "SourceFilesInfo",
-    "compile_commands_aspect",
+    ":compilation_database.bzl",
+    "CompilationAspect",
+    "compilation_database_aspect",
+    "compilation_database",
 )
 
-def _codechecker_impl(ctx):
-    # Collect source files and compilation database
+def _check_source_files(source_files, compilation_db):
+    available_sources = [src.path for src in source_files]
+    checking_sources = [item.file for item in compilation_db]
+
+    for src in checking_sources:
+        if src not in available_sources:
+            fail("File: %s\nNot available in collected source files" % src)
+
+def _compile_commands_json(compilation_db):
+    json = "[\n"
+    entries = [entry.to_json() for entry in compilation_db]
+    json += ",\n".join(entries)
+    json += "]\n"
+    return json
+
+def _compile_commands_impl(ctx):
     source_files = []
     compilation_db = []
     headers = []
     for target in ctx.attr.targets:
-        src = target[SourceFilesInfo].transitive_source_files
+        src = target[OutputGroupInfo].compdb_files
         source_files += src.to_list()
-        cdb = target[SourceFilesInfo].compilation_db
+        cdb = target[CompilationAspect].compilation_db
         compilation_db += cdb.to_list()
-        hdr = target[SourceFilesInfo].headers
+        hdr = target[OutputGroupInfo].header_files
         headers += hdr.to_list()
 
     # Check that compilation database is not empty
     if not len(compilation_db):
         fail("Compilation database is empty!")
 
+    # Check that we collect all required source files
+    #_check_source_files(source_files, compilation_db)
+
+    # Generate compile_commands.json from compilation database info
+    json = _compile_commands_json(compilation_db)
+
+    # Save compile_commands.json file
+    ctx.actions.write(
+        output = ctx.outputs.compile_commands,
+        content = json,
+        is_executable = False,
+    )
+
+    # Create CodeChecker skip (ignore) file
+    ctx.actions.write(
+        output = ctx.outputs.codechecker_skipfile,
+        content = "\n".join(ctx.attr.skip),
+        is_executable = False,
+    )
+
     # List all files required at build and run (test) time
     all_files = [
-        # ctx.outputs.compile_commands,
-        # ctx.outputs.codechecker_skipfile,
+        ctx.outputs.compile_commands,
+        ctx.outputs.codechecker_skipfile,
         # ctx.outputs.codechecker_files,
         # ctx.outputs.codechecker_script,
         # ctx.outputs.codechecker_log,
@@ -43,12 +78,12 @@ def _codechecker_impl(ctx):
         ),
     ]
 
-codechecker = rule(
-    implementation = _codechecker_impl,
+compile_commands = rule(
+    implementation = _compile_commands_impl,
     attrs = {
         "targets": attr.label_list(
             aspects = [
-                compile_commands_aspect,
+                compilation_database_aspect,
             ],
             doc = "List of compilable targets which should be checked.",
         ),
@@ -70,8 +105,8 @@ codechecker = rule(
     },
     outputs = {
         # "codechecker_files": "%{name}.codechecker-files",
-        # "compile_commands": "%{name}.compile_commands.json",
-        # "codechecker_skipfile": "%{name}.codechecker_skipfile.cfg",
+        "compile_commands": "%{name}.compile_commands.json",
+        "codechecker_skipfile": "%{name}.codechecker_skipfile.cfg",
         # "codechecker_script": "%{name}.codechecker_script.py",
         # "codechecker_log": "%{name}.codechecker.log",
     },

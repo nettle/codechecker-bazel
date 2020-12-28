@@ -5,13 +5,20 @@
 #     "cc_library",
 # )
 
-# # codechecker rules
+# Compilation database rules
+# load(
+#     "//codechecker:compilation_database.bzl",
+#     "compilation_database",
+# )
+
+# codechecker rules
 load(
     "//codechecker:codechecker.bzl",
-    "codechecker",
+#     "codechecker",
 #     "codechecker_online_database",
 #     "codechecker_suite",
 #     "codechecker_test",
+    "compile_commands",
 )
 
 # Test for strip_include_prefix
@@ -28,14 +35,35 @@ cc_binary(
     deps = ["test_lib"],
 )
 
-# Simple codechecker rule - performs only "build" phase without "test"
-# which verifies results and sends results to online database
-codechecker(
-    name = "codechecker_main_build",
+# compilation_database(
+#     name = "example_compdb",
+#     targets = [
+#         "test_main",
+#     ],
+#     # [Optional]
+#     # If your exec root (value returned by `bazel info execution_root`)
+#     # is constant across your users, then you can supply the value here.
+#     # Otherwise, the default is `__EXEC_ROOT__` which you can replace in
+#     # the output file using `sed` or similar tool (see below).
+#     #exec_root = "/path/to/bazel/exec_root",
+#     #disable = True,
+# )
+
+compile_commands(
+    name = "codechecker_rule",
     targets = [
         "test_main",
     ],
 )
+
+# # Simple codechecker rule - performs only "build" phase without "test"
+# # which verifies results and sends results to online database
+# codechecker(
+#     name = "codechecker_main_build",
+#     targets = [
+#         "test_main",
+#     ],
+# )
 
 # # Example of how CodeChecker online database can be defined
 # codechecker_online_database(
@@ -69,4 +97,3 @@ codechecker(
 #         "test_main",
 #     ],
 # )
-
