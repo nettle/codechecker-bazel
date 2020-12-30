@@ -118,7 +118,7 @@ def input_data():
     # logging.debug("PATH=%s", execute("echo $PATH"))
 
 
-def execute(cmd, env=None):
+def execute(cmd, env=None, codes=None):
     """ Execute CodeChecker commands """
     process = subprocess.Popen(
         cmd,
@@ -129,9 +129,13 @@ def execute(cmd, env=None):
         stderr=subprocess.PIPE,
     )
     stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        fail("\ncommand: %s\nstdout: %s\nstderr: %s\n" % (cmd, stdout, stderr))
+    if not codes:
+        codes = [0]
+    if process.returncode not in codes:
+        fail("\ncommand: %s\nexit code: %d\nstdout: %s\nstderr: %s\n" % (
+            cmd, process.returncode, stdout, stderr))
     logging.debug("Executing: %s", cmd)
+    logging.debug("Exit code: %d", process.returncode)
     # logging.debug("Output:\n\n%s\n", stdout)
     return stdout
 
@@ -166,7 +170,7 @@ def analyze():
         CODECHECKER_FILES,
     )
     logging.info("Running CodeChecker analyze...")
-    output = execute(command)  #, env=env)
+    output = execute(command, codes=[0, 2])  #, env=env)
     logging.info("Output:\n\n%s\n", output)
     if output.find("- Failed to analyze") != -1:
         logging.error("CodeChecker failed to analyze some files")
@@ -277,10 +281,10 @@ def check_results():
     stage("CodeChecker result:")
     # Get results file and read it
     result_file = CODECHECKER_FILES + "/result.txt"
-    logging.info("Find CodeChecker results in bazel-out")
+    logging.info("Find CodeChecker results in bazel-bin")
     logging.info("      all artifacts: %s/", CODECHECKER_FILES)
     logging.info("      HTML report:   %s/report/index.html", CODECHECKER_FILES)
-    logging.info("      result file:   %s", result_file)
+    logging.info("      parse results: %s", result_file)
     results = read_file(result_file)
     logging.info("CodeChecker parse output: \n\n%s\n", results)
     # Collect defect severities to detect

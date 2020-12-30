@@ -79,6 +79,9 @@ Just run:
 
     bazel test ...
 
+add option `--test_output=all` to see CodeChecker parse output:
+
+    bazel test ... --test_output=all
 
 Known Issues
 ------------
@@ -93,6 +96,7 @@ TODO
 
 - [ ] Move CodeChecker analyze to Bazel test stage
 - [ ] Checkers configuration
+- [ ] Paths to clang and CodeChecker
 - [ ] Bazel version compatibility
 - [ ] CodeChecker version compatibility
 - [ ] Windows + VS support
