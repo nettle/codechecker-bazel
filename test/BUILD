@@ -1,24 +1,15 @@
-# # cc_binary for simple test_main
-# load(
-#     "@rules_cc//cc:defs.bzl",
-#     "cc_binary",
-#     "cc_library",
-# )
-
-# Compilation database rules
-# load(
-#     "//codechecker:compilation_database.bzl",
-#     "compilation_database",
-# )
+# cc_binary for simple test_main
+load(
+    "@rules_cc//cc:defs.bzl",
+    "cc_binary",
+    "cc_library",
+)
 
 # codechecker rules
 load(
     "//codechecker:codechecker.bzl",
-#     "codechecker",
-#     "codechecker_online_database",
-#     "codechecker_suite",
+    "codechecker_suite",
     "codechecker_test",
-    "compile_commands",
 )
 
 # Test for strip_include_prefix
@@ -35,27 +26,6 @@ cc_binary(
     deps = ["test_lib"],
 )
 
-# compilation_database(
-#     name = "example_compdb",
-#     targets = [
-#         "test_main",
-#     ],
-#     # [Optional]
-#     # If your exec root (value returned by `bazel info execution_root`)
-#     # is constant across your users, then you can supply the value here.
-#     # Otherwise, the default is `__EXEC_ROOT__` which you can replace in
-#     # the output file using `sed` or similar tool (see below).
-#     #exec_root = "/path/to/bazel/exec_root",
-#     #disable = True,
-# )
-
-# compile_commands(
-#     name = "compile_commands",
-#     targets = [
-#         "test_main",
-#     ],
-# )
-
 # Simple codechecker rule - performs only "build" phase without "test"
 # which verifies results and sends results to online database
 codechecker_test(
@@ -65,35 +35,12 @@ codechecker_test(
     ],
 )
 
-# # Example of how CodeChecker online database can be defined
-# codechecker_online_database(
-#     name = "codechecker_store",
-#     url = "https://test.codechecker.gic.ericsson.se/PD_BBI/",
-#     valid_users = [
-#         "valid-user",
-#     ],
-# )
-
-# # Simplest codechecker_test example
-# # Runs CodeChecker on "test_main" target
-# # Sends results to online database "codechecker_store" (defined above)
-# # However to perform store the username must be "valid-user"
-# codechecker_test(
-#     name = "codechecker_main",
-#     online_database = "codechecker_store",
-#     run_name = "Bazel-main-test",
-#     # run_tag = "my-tag",
-#     targets = [
-#         "test_main",
-#     ],
-# )
-
-# # Simplest codechecker_suite example for "test_main"
-# # Can run CodeChecker on targets built for different configs
-# # This example performs build just for default config
-# codechecker_suite(
-#     name = "codechecker_main_multi",
-#     targets = [
-#         "test_main",
-#     ],
-# )
+# Simplest codechecker_suite example for "test_main"
+# Can run CodeChecker on targets built for different configs
+# This example performs build just for default config
+codechecker_suite(
+    name = "codechecker_main_multi",
+    targets = [
+        "test_main",
+    ],
+)
