@@ -18,7 +18,7 @@ load(
 #     "codechecker_online_database",
 #     "codechecker_suite",
     "codechecker_test",
-    "compile_commands",
+#    "compile_commands",
 )
 
 # Test for strip_include_prefix

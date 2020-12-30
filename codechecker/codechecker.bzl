@@ -1,7 +1,24 @@
+"""
+TODO:
+[ ] absolute path in directory
+[ ] log file?
+[ ] path to CodeChecker
+[ ] local defines in aspects.bzl
+[ ] compile_commands.json postprocessing
+[ ] _check_source_files?
+[ ] rename to aspects.bzl?
+"""
+
 load(
     ":compilation_database.bzl",
     "CompilationAspect",
     "compilation_database_aspect",
+)
+
+load(
+    ":transitive_sources.bzl",
+    "transitive_sources_aspect",
+    "TransitiveSourcesInfo",
 )
 
 def _check_source_files(source_files, compilation_db):
@@ -20,16 +37,33 @@ def _compile_commands_json(compilation_db):
     return json
 
 def _compile_commands_impl(ctx):
+    # source_files = []
+    # compilation_db = []
+    # headers = []
+    # for target in ctx.attr.targets:
+    #     src = target[OutputGroupInfo].compdb_files
+    #     source_files += src.to_list()
+    #     cdb = target[CompilationAspect].compilation_db
+    #     compilation_db += cdb.to_list()
+    #     hdr = target[OutputGroupInfo].header_files
+    #     headers += hdr.to_list()
+
     source_files = []
     compilation_db = []
     headers = []
     for target in ctx.attr.targets:
-        src = target[OutputGroupInfo].compdb_files
-        source_files += src.to_list()
-        cdb = target[CompilationAspect].compilation_db
-        compilation_db += cdb.to_list()
-        hdr = target[OutputGroupInfo].header_files
-        headers += hdr.to_list()
+        source_files.append(target[TransitiveSourcesInfo].source_files)
+        # source_files.append(target[OutputGroupInfo].compdb_files)
+        # compilation_db.append(target[CompilationAspect].compilation_db)
+        # headers.append(target[OutputGroupInfo].header_files)
+
+    source_files = depset(transitive = source_files)
+    compilation_db = depset(transitive = compilation_db)
+    headers = depset(transitive = headers)
+
+    source_files = source_files.to_list()
+    compilation_db = compilation_db.to_list()
+    headers = headers.to_list()
 
     # Check that compilation database is not empty
     if not len(compilation_db):
@@ -37,9 +71,13 @@ def _compile_commands_impl(ctx):
 
     # Check that we collect all required source files
     #_check_source_files(source_files, compilation_db)
+    print(">>> source_files=%s" % str(source_files))
+    print(">>> headers=%s" % str(headers))
+    print(">>> compilation_db=%s" % str(compilation_db))
 
     # Generate compile_commands.json from compilation database info
     json = _compile_commands_json(compilation_db)
+    # json = json.replace("__EXEC_ROOT__", "/home/ezkraal/.cache/bazel/_bazel_ezkraal/348e8dd3460626e2b00e2c97f4a69383/execroot/__main__")  # "/repo/ezkraal/codechecker/bazel")
 
     # Save compile_commands.json file
     ctx.actions.write(
@@ -47,6 +85,26 @@ def _compile_commands_impl(ctx):
         content = json,
         is_executable = False,
     )
+
+    # # Save as initial compile_commands.json file
+    # initial_compile_commands = ctx.actions.declare_file("initial." + ctx.outputs.compile_commands.short_path)
+    # ctx.actions.write(
+    #     output = initial_compile_commands,
+    #     content = json,
+    #     is_executable = False,
+    # )
+    # # Now convert flacc calls to clang
+    # ctx.actions.run(
+    #     inputs = [initial_compile_commands],
+    #     outputs = [ctx.outputs.compile_commands],
+    #     executable = ctx.executable._compile_commands_filter,
+    #     arguments = [
+    #         # "-v",  # -vv for debug
+    #         "--input=" + initial_compile_commands.path,
+    #         "--output=" + ctx.outputs.compile_commands.path,
+    #     ],
+    #     progress_message = "Filtering %s" % str(ctx.label),
+    # )
 
     # List all files required at build and run (test) time
     all_files = [
@@ -64,22 +122,23 @@ def _compile_commands_impl(ctx):
         ),
     ]
 
-compile_commands = rule(
+_compile_commands = rule(
     implementation = _compile_commands_impl,
     attrs = {
         "targets": attr.label_list(
             aspects = [
-                compilation_database_aspect,
+                transitive_sources_aspect,
+                # compilation_database_aspect,
             ],
             doc = "List of compilable targets which should be checked.",
         ),
     },
     outputs = {
-        "compile_commands": "%{name}.compile_commands.json",
+        "compile_commands": "compile_commands.json",
     },
 )
 
-def _codechecker_impl(ctx):
+def _codechecker_test_impl(ctx):
     # Create compile_commands.json
     info = _compile_commands_impl(ctx)
     all_files = info[0].files.to_list()
@@ -115,27 +174,10 @@ def _codechecker_impl(ctx):
             "{compile_commands}": ctx.outputs.compile_commands.short_path,
             "{codechecker_skipfile}": ctx.outputs.codechecker_skipfile.short_path,
             "{codechecker_files}": ctx.outputs.codechecker_files.short_path,
-            #"{codechecker_log}": ctx.outputs.codechecker_log.short_path,
+            # "{codechecker_log}": ctx.outputs.codechecker_log.short_path,
+            # "{codechecker_severities}": " ".join(ctx.attr.severities),
         },
     )
-
-    # ctx.actions.run(
-    #     inputs = depset(
-    #         [
-    #             ctx.outputs.codechecker_script,
-    #             ctx.outputs.compile_commands,
-    #             ctx.outputs.codechecker_skipfile,
-    #         ] + all_files, # source_files,
-    #         # transitive = headers,
-    #     ),
-    #     outputs = [
-    #         ctx.outputs.codechecker_files,
-    #         ctx.outputs.codechecker_log,
-    #     ],
-    #     executable = ctx.outputs.codechecker_script,
-    #     arguments = [],
-    #     progress_message = "CodeChecker %s" % str(ctx.label),
-    # )
 
     # List all files required at build and run (test) time
     # all_files.append(ctx.outputs.codechecker_skipfile)
@@ -149,6 +191,7 @@ def _codechecker_impl(ctx):
     # List files required for test
     run_files = all_files + [
     ]
+    print(">>> run_files=%s" % str(run_files))
 
     # Return all files
     return [
@@ -160,7 +203,7 @@ def _codechecker_impl(ctx):
     ]
 
 codechecker_test = rule(
-    implementation = _codechecker_impl,
+    implementation = _codechecker_test_impl,
     attrs = {
         "targets": attr.label_list(
             aspects = [
@@ -186,7 +229,7 @@ codechecker_test = rule(
     },
     outputs = {
         "codechecker_files": "%{name}.codechecker-files",
-        "compile_commands": "%{name}.compile_commands.json",
+        "compile_commands": "compile_commands.json",
         "codechecker_skipfile": "%{name}.codechecker_skipfile.cfg",
         "codechecker_script": "%{name}.codechecker_script.py",
         "codechecker_log": "%{name}.codechecker.log",
