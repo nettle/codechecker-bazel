@@ -1,5 +1,10 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+# We need http_archive
+load(
+    "@bazel_tools//tools/build_defs/repo:http.bzl",
+    "http_archive",
+)
 
+# Fetch codechecker-bazel
 http_archive(
     name = "codechecker-bazel",
     strip_prefix = "codechecker-bazel-main",

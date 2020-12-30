@@ -5,7 +5,7 @@ load(
     "cc_library",
 )
 
-# codechecker rules
+# Load codechecker rules
 load(
     "@codechecker-bazel//codechecker:codechecker.bzl",
     "codechecker_suite",
@@ -18,8 +18,7 @@ cc_binary(
     srcs = ["hello_world.cc"],
 )
 
-# Simple codechecker rule - performs only "build" phase without "test"
-# which verifies results and sends results to online database
+# Use codechecker_test rule to check "hello_world" code
 codechecker_test(
     name = "hello_world_codechecker",
     targets = [
