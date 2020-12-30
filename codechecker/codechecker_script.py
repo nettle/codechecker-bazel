@@ -115,7 +115,9 @@ def input_data():
     logging.debug("      STORE_NAME     : %s", str(STORE_NAME))
     logging.debug("      STORE_TAG      : %s", str(STORE_TAG))
     logging.debug("")
-    # logging.debug("PATH=%s", execute("echo $PATH"))
+    logging.debug("PATH=%s", execute("echo $PATH"))
+    logging.debug("PWD=%s", execute("pwd"))
+    logging.debug("Tree:\n%s", execute("tree -aACF"))
 
 
 def execute(cmd, env=None, codes=None):
@@ -335,6 +337,9 @@ def main():
         if EXECUTION_MODE == "Run":
             run()
         elif EXECUTION_MODE == "Test":
+            test()
+        elif EXECUTION_MODE == "Full":
+            run()
             test()
         else:
             fail("Wrong codechecker script mode: %s" % EXECUTION_MODE)

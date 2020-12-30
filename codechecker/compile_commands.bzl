@@ -221,16 +221,14 @@ def collect_headers(target, ctx):
         headers = [target[CcInfo].compilation_context.headers]
     else:
         headers = []
-    headers = depset(headers)
     for attr in _source_attr:
         if hasattr(ctx.rule.attr, attr):
             deps = getattr(ctx.rule.attr, attr)
-            headers = [headers]
             for dep in deps:
                 if SourceFilesInfo in dep:
                     src = dep[SourceFilesInfo].headers
                     headers.append(src)
-            headers = depset(transitive = headers)
+    headers = depset(transitive = headers)
     return headers
 
 def _accumulate_transitive_source_files(accumulated, deps):
