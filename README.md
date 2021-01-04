@@ -86,18 +86,16 @@ add option `--test_output=all` to see CodeChecker parse output:
 Known Issues
 ------------
 
-* Windows is not supported yet
-* MacOS is not supported yet
 * Checkers configuration is not supported yet
+* Windows is not supported by CodeChecker
 
 
 TODO
 ----
 
-- [ ] Move CodeChecker analyze to Bazel test stage
 - [ ] Checkers configuration
 - [ ] Paths to clang and CodeChecker
+- [ ] Move CodeChecker analyze to Bazel test stage?
 - [ ] Bazel version compatibility
 - [ ] CodeChecker version compatibility
-- [ ] Windows + VS support
 - [ ] MacOS + Xcode support
