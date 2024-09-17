@@ -20,6 +20,10 @@ COMPILE_COMMANDS_FILTER = {
         r" -MF \S* ": " ",
         r" -MT \S* ": " ",
     },
+    # Substract .../bin/.../_virtual_includes/...
+    r".*\/_virtual_includes\/": {
+        r" \S*\/bin\/(\S*\/_virtual_includes\/)": r" \1",
+    },
 }
 
 
