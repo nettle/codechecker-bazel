@@ -1,6 +1,20 @@
-""" compile_commands_aspect
+# Copyright 2020 Ericsson AB
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-compile_commands_aspect - collects all dependent source files
+""" compile_commands_aspect() and compile_commands() rules
+
+compile_commands_aspect() - collects all dependent source files
 and compile-time information to create compilation database
 ready to be presented as compile_commands.json file.
 
@@ -10,6 +24,10 @@ Implementation is based on two sources:
   https://github.com/grailbio/bazel-compilation-database
 * collect_source_files_aspect - simple solution taken from
   https://stackoverflow.com/questions/50083635/bazel-how-to-get-all-transitive-sources-of-a-target
+
+compile_commands() rule - generates Bazel-native compile_commands.json file.
+It uses compile_commands_aspect to collect all sources and compile-time info
+for given targets and platform, then just saves to JSON file.
 """
 
 load(
@@ -58,6 +76,9 @@ _cc_rules = [
     "cc_proto_library",
 ]
 
+SYSTEM_INCLUDE = "-isystem "
+QUOTE_INCLUDE = "-iquote "
+
 # Function copied from https://gist.github.com/oquenchil/7e2c2bd761aa1341b458cc25608da50c
 # NOTE: added local_defines
 def get_compile_flags(dep):
@@ -70,25 +91,25 @@ def get_compile_flags(dep):
     compilation_context = dep[CcInfo].compilation_context
 
     for define in compilation_context.defines.to_list():
-        options.append("-D{}".format(define))
+        options.append("-D'{}'".format(define))
 
     for define in compilation_context.local_defines.to_list():
-        options.append("-D{}".format(define))
+        options.append("-D'{}'".format(define))
 
     for system_include in compilation_context.system_includes.to_list():
         if len(system_include) == 0:
             system_include = "."
-        options.append("-isystem {}".format(system_include))
+        options.append(SYSTEM_INCLUDE + system_include)
 
     for include in compilation_context.includes.to_list():
         if len(include) == 0:
             include = "."
-        options.append("-I {}".format(include))
+        options.append("-I{}".format(include))
 
     for quote_include in compilation_context.quote_includes.to_list():
         if len(quote_include) == 0:
             quote_include = "."
-        options.append("-iquote {}".format(quote_include))
+        options.append(QUOTE_INCLUDE + quote_include)
 
     return options
 
@@ -226,23 +247,25 @@ def collect_headers(target, ctx):
         if hasattr(ctx.rule.attr, attr):
             deps = getattr(ctx.rule.attr, attr)
             headers = [headers]
-            for dep in deps:
-                if SourceFilesInfo in dep:
-                    src = dep[SourceFilesInfo].headers
-                    headers.append(src)
+            if type(deps) == "list":
+                for dep in deps:
+                    if SourceFilesInfo in dep:
+                        src = dep[SourceFilesInfo].headers
+                        headers.append(src)
             headers = depset(transitive = headers)
     return headers
 
 def _accumulate_transitive_source_files(accumulated, deps):
     sources = [accumulated]
-    for dep in deps:
-        if SourceFilesInfo in dep:
-            src = dep[SourceFilesInfo].transitive_source_files
-            sources.append(src)
+    if type(deps) == "list":
+        for dep in deps:
+            if SourceFilesInfo in dep:
+                src = dep[SourceFilesInfo].transitive_source_files
+                sources.append(src)
     return depset(transitive = sources)
 
 def _accumulate_compilation_database(accumulated, deps):
-    if not len(deps):
+    if type(deps) != "list" or not len(deps):
         return accumulated
     compilation_db = [accumulated]
     for dep in deps:
@@ -288,3 +311,127 @@ compile_commands_aspect = aspect(
     fragments = ["cpp"],
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
+
+def _platforms_transition_impl(settings, attr):
+    if attr.platform:
+        platforms = attr.platform
+    else:
+        platforms = settings["//command_line_option:platforms"]
+    return {
+        "//command_line_option:platforms": platforms,
+    }
+
+platforms_transition = transition(
+    implementation = _platforms_transition_impl,
+    inputs = [
+        "//command_line_option:platforms",
+    ],
+    outputs = [
+        "//command_line_option:platforms",
+    ],
+)
+
+def _check_source_files(source_files, compilation_db):
+    available_sources = [src.path for src in source_files]
+    checking_sources = [item.file for item in compilation_db]
+    for src in checking_sources:
+        if src not in available_sources:
+            fail("File: %s\nNot available in collected source files" % src)
+
+def _compile_commands_json(compilation_db):
+    json = "[\n"
+    entries = [entry.to_json() for entry in compilation_db]
+    json += ",\n".join(entries)
+    json += "]\n"
+    return json
+
+def compile_commands_impl(ctx):
+    """ Creates compile_commands.json file for given targets and platform
+
+    Returns:
+      DefaultInfo(
+        files,     # as compile_commands.json
+        runfiles,  # as source and header files
+      )
+    """
+
+    # Collect source files and compilation database
+    source_files = []
+    compilation_db = []
+    headers = []
+    for target in ctx.attr.targets:
+        src = target[SourceFilesInfo].transitive_source_files
+        source_files += src.to_list()
+        cdb = target[SourceFilesInfo].compilation_db
+        compilation_db += cdb.to_list()
+        hdr = target[SourceFilesInfo].headers
+        headers += hdr.to_list()
+
+    # Check that compilation database is not empty
+    if not len(compilation_db):
+        fail("Compilation database is empty!")
+
+    # Check that we collect all required source files
+    _check_source_files(source_files, compilation_db)
+
+    # Generate compile_commands.json from compilation database info
+    compile_db_json = _compile_commands_json(compilation_db)
+
+    # Save compile_commands.json file
+    ctx.actions.write(
+        output = ctx.outputs.compile_commands,
+        content = compile_db_json,
+        is_executable = False,
+    )
+
+    # Return compile_commands and source + header files
+    return [
+        DefaultInfo(
+            files = depset([ctx.outputs.compile_commands]),
+            runfiles = ctx.runfiles(
+                files = source_files,
+                transitive_files = depset(transitive = headers),
+            ),
+        ),
+    ]
+
+_compile_commands = rule(
+    implementation = compile_commands_impl,
+    attrs = {
+        "platform": attr.string(
+            default = "",  #"@platforms//os:linux",
+            doc = "Plaform to build for",
+        ),
+        "targets": attr.label_list(
+            aspects = [
+                compile_commands_aspect,
+            ],
+            cfg = platforms_transition,
+            doc = "List of compilable targets which should be checked.",
+        ),
+        "_whitelist_function_transition": attr.label(
+            default = "@bazel_tools//tools/whitelists/function_transition_whitelist",
+            doc = "needed for transitions",
+        ),
+    },
+    outputs = {
+        "compile_commands": "%{name}/compile_commands.json",
+    },
+)
+
+def compile_commands(
+        name,
+        targets,
+        platform = "",  #"@platforms//os:linux",
+        tags = [],
+        **kwargs):
+    """ Bazel rule to generate compile_commands.json file """
+    compile_commands_tags = [] + tags
+    if "compile_commands" not in tags:
+        compile_commands_tags.append("compile_commands")
+    _compile_commands(
+        name = name,
+        platform = platform,
+        targets = targets,
+        tags = compile_commands_tags,
+    )

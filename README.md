@@ -1,101 +1,133 @@
-Bazel rules for CodeChecker
-===========================
+Bazel CodeChecker
+=================
 
-`codechecker_test` and `codechecker_suite` rules to run CodeChecker as Bazel test.
+Bazel rules for CodeChecker and other tools for Code Analysis,
+including Clang-tidy, Clang analyzer, generating compilation database
+(`compile_commands.json`) and others.
 
-> NOTE: This is Alpha version! Works for Linux only with a number of limitations
+> If you would like to report an issue or suggest a change
+> please read [CONTRIBUTING.md](CONTRIBUTING.md).
 
+### CodeChecker
 
-What is Bazel?
---------------
+CodeChecker rule `codechecker_test()` to run `CodeChecker` tool as a Bazel test.
 
-Bazel is a build system developed by Google,  
-see https://bazel.build/
+Read about CodeChecker:
 
+* GitHub: https://github.com/Ericsson/codechecker
+* Read the Docs: https://codechecker.readthedocs.io/
 
-What is CodeChecker?
---------------------
-
-CodeChecker is a static analysis framework for C and C++ code developed by Ericsson,  
-see https://github.com/Ericsson/codechecker, and https://codechecker.readthedocs.io/
-
-CodeChecker is based on LLVM/Clang static analyzer,  
-see https://clang-analyzer.llvm.org/
+Bazel rule for CodeChecker `codechecker_test()` uses
+Bazel rule for compilation database (compile_commands.json) `compile_commands()`
 
 
-How to use?
------------
+### Clang-tidy
 
-1. Add codechecker-bazel to WORKSPACE
+Bazel aspect `clang_tidy_aspect` and rule `clang_tidy_test()`
+to run `clang-tidy` "linter" tool from Bazel command line or Bazel test.
 
-**WORKSPACE:**
-```py
-# We need http_archive
+Find more information about LLVM clang-tidy:
+
+* LLVM: https://clang.llvm.org/extra/clang-tidy
+* bazel_clang_tidy: https://github.com/erenon/bazel_clang_tidy
+
+
+### Clang Static Analyzer
+
+Bazel rule `clang_analyze_test()` runs Clang Static Analyzer (or `clang --analyze`),
+the most (and the only?) sophisticated tool for C/C++ code analysis which implements
+path-sensitive, inter-procedural analysis based on symbolic execution technique.
+
+Find more information about LLVM Clang Static Analyzer:
+
+* LLVM: https://clang.llvm.org/docs/ClangStaticAnalyzer.html
+
+
+Prerequisites
+-------------
+
+We need the following tools:
+
+- Git 2 or newer (we use 2.36)
+- Bazel 4 or newer (we recommend version 6)
+- Clang 16 or newer (we use 16), we use clang-tidy
+- Python 3.8 or newer (we use 3.11)
+- CodeChecker 6.23 or newer (we use 6.23.0)
+
+If, by chance, Environment Modules (https://modules.sourceforge.net/)
+are available in your system, you can just add the following modules:
+
+    module add git
+    module add bazel/6
+    module add clang/16
+    module add python/3.11
+    module add codechecker/6.23
+
+
+How to use
+----------
+
+To use `codechecker_test()` rule you should include it to your BUILD file:
+
+```python
 load(
-    "@bazel_tools//tools/build_defs/repo:http.bzl",
-    "http_archive",
-)
-
-# Fetch codechecker-bazel
-http_archive(
-    name = "codechecker-bazel",
-    strip_prefix = "codechecker-bazel-main",
-    urls = ["https://github.com/nettle/codechecker-bazel/archive/main.tar.gz"],
-)
-```
-
-2. Load codechecker rules to BUILD
-
-**BUILD:**
-```py
-# Load codechecker rules
-load(
-    "@codechecker-bazel//codechecker:codechecker.bzl",
-    "codechecker_suite",
+    "@bazel_codechecker//src:codechecker.bzl",
     "codechecker_test",
 )
 ```
 
-3. Add codechecker rules for your targets
+Then use `codechecker_test()` rule passing targets you call CodeChecker for:
 
-**BUILD:**
-```py
-# Use codechecker_test rule to check "hello_world"
+```python
 codechecker_test(
-    name = "hello_world_codechecker",
+    name = "your_codechecker_rule_name",
     targets = [
-        "hello_world",
+        "your_target",
     ],
 )
 ```
 
-See [examples](examples)
+Note that `compile_commands()` rule can be used independently:
+
+```python
+load(
+    "@bazel_codechecker//src:compile_commands.bzl",
+    "compile_commands",
+)
+```
+
+Then use `compile_commands()` rule passing build targets:
+
+```python
+compile_commands(
+    name = "your_compile_commands_rule_name",
+    targets = [
+        "your_target",
+    ],
+)
+```
 
 
-How to test?
-------------
+Examples
+--------
 
-Just run:
+In [test/BUILD](test/BUILD) you can find examples for `codechecker_test()`
+and for `compile_commands()` rules.
+
+For instance see `codechecker_pass` and `compile_commands_pass`.
+
+Run all test Bazel targets:
 
     bazel test ...
 
-add option `--test_output=all` to see CodeChecker parse output:
+After that you can find all artifacts in `bazel-bin` directory:
 
-    bazel test ... --test_output=all
+    # All codechecker_pass artifacts
+    ls bazel-bin/test/codechecker_pass/
+    
+    # compile_commands.json for compile_commands_pass
+    cat bazel-bin/test/compile_commands_pass/compile_commands.json
 
-Known Issues
-------------
+To run `clang_tidy_aspect` on all C/C++ code:
 
-* Checkers configuration is not supported yet
-* Windows is not supported by CodeChecker
-
-
-TODO
-----
-
-- [ ] Checkers configuration
-- [ ] Paths to clang and CodeChecker
-- [ ] Move CodeChecker analyze to Bazel test stage?
-- [ ] Bazel version compatibility
-- [ ] CodeChecker version compatibility
-- [ ] MacOS + Xcode support
+    bazel build ... --aspects @bazel_codechecker//src:clang.bzl%clang_tidy_aspect --output_groups=report

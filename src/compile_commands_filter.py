@@ -1,12 +1,29 @@
+# Copyright 2023 Ericsson AB
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Filter compile_commands.json file
-to remove unsupported clang and gcc flags
 """
 
+from __future__ import print_function
 import argparse
 import json
 import logging
+import os
 import re
+import shlex
+import subprocess
 
 
 COMPILE_COMMANDS_FILTER = {
@@ -19,6 +36,14 @@ COMPILE_COMMANDS_FILTER = {
         r" -MD ": " ",
         r" -MF \S* ": " ",
         r" -MT \S* ": " ",
+    },
+    # flacc: filter out unsupported options
+    r".*\/bin\/flacc ": {
+        r" -MD ": " ",
+        r" -MF \S* ": " ",
+        r" -MT \S* ": " ",
+        r" -analyze-and-compile ": " ",
+        r"\/bin\/flacc ": "/compiler-clang/bin/clang --driver-mode=flacc ",
     },
 }
 
@@ -56,6 +81,27 @@ def parse_args():
     return options
 
 
+def split_to_list(arguments):
+    """
+    Split argument string to list
+    """
+    if isinstance(arguments, list):
+        return arguments
+    return shlex.split(arguments)
+
+
+def run_command(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+    """
+    Run shell command
+    """
+    cmd = split_to_list(command)
+    process = subprocess.Popen(cmd, stdout=stdout, stderr=stderr)
+    out, err = process.communicate()
+    if err:
+        logging.error("Command: %s...\nError: %s", command, err)
+    return out
+
+
 def filter_compile_flags(compile_commands):
     """
     Remove unrecognized flags from compile commands
@@ -64,7 +110,7 @@ def filter_compile_flags(compile_commands):
     for item in compile_commands:
         command = item["command"]
         for rule in COMPILE_COMMANDS_FILTER:
-            if re.search(rule, command):
+            if re.match(rule, command):
                 rules = COMPILE_COMMANDS_FILTER[rule]
                 for pattern in rules:
                     logging.debug("applying: '%s' -> '%s'", pattern, rules[pattern])
@@ -89,7 +135,7 @@ def main():
         logging.info("Compile commands size: %d", len(compile_commands))
         logging.debug("Read compile commands:\n\n%s\n", compile_commands)
 
-    compile_commands = filter_compile_flags(compile_commands)
+    # compile_commands = filter_compile_flags(compile_commands)
 
     logging.debug("Converted compile commands:\n\n%s\n", compile_commands)
     logging.info("Saving to: %s", options.output)
